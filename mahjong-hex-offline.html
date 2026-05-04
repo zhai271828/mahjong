@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>麻将海克斯 - 单机版</title>
+  <style>
+    :root {
+      --bg-main: #eef7f5;
+      --bg-accent: #f6f2e9;
+      --ink: #1f2937;
+      --sub: #526072;
+      --brand: #0b6e69;
+      --brand-2: #088178;
+      --line: #d4e3df;
+      --card: #ffffff;
+      --danger: #be123c;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh;
+      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 15% 10%, #dff4ef, transparent 42%),
+        radial-gradient(circle at 88% 18%, #fff2db, transparent 35%),
+        linear-gradient(145deg, var(--bg-main), var(--bg-accent));
+    }
+    .page { width: min(1100px, 100%); margin: 0 auto; padding: 20px 14px 28px; }
+    .hero {
+      border: 1px solid var(--line); border-radius: 16px; padding: 18px;
+      background: linear-gradient(135deg, rgba(11,110,105,0.10), rgba(255,255,255,0.82));
+      box-shadow: 0 10px 24px rgba(11,110,105,0.08);
+    }
+    .hero h1 { margin: 0; font-size: clamp(1.3rem,2vw,1.9rem); letter-spacing: 0.02em; }
+    .hero p { margin: 8px 0 0; color: var(--sub); }
+    .toolbar {
+      margin-top: 14px; border: 1px solid var(--line); border-radius: 14px;
+      background: var(--card); padding: 14px; display: grid; gap: 12px;
+    }
+    .actions { display: flex; flex-wrap: wrap; gap: 10px; }
+    button {
+      border: none; border-radius: 10px; padding: 10px 14px; cursor: pointer;
+      font-size: 0.95rem; color: #fff;
+      background: linear-gradient(135deg, var(--brand), var(--brand-2));
+      box-shadow: 0 8px 18px rgba(8,129,120,0.24);
+    }
+    button:disabled { opacity: 0.55; cursor: not-allowed; }
+    button.ghost { color: var(--ink); border: 1px solid var(--line); background: #f8fafc; box-shadow: none; }
+    button.danger { background: linear-gradient(135deg, #be123c, #e11d48); box-shadow: 0 8px 18px rgba(225,29,72,0.25); }
+    .status { margin-top: 8px; font-size: 0.92rem; color: var(--sub); }
+    .status.error { color: var(--danger); }
+    .hex-grid { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+    .hex-card {
+      border: 1px solid var(--line); border-radius: 10px; background: #fbfefd; padding: 10px;
+    }
+    .hex-card h3 { margin: 0; font-size: 0.96rem; }
+    .hex-card p { margin: 8px 0 10px; font-size: 0.88rem; color: var(--sub); line-height: 1.45; }
+    .hex-card button { padding: 8px 12px; font-size: 0.88rem; }
+    .empty {
+      border: 1px dashed var(--line); border-radius: 10px; padding: 10px;
+      color: var(--sub); font-size: 0.88rem; background: #fafdfc; text-align: center;
+    }
+    .section-title { font-size: 1rem; margin: 16px 0 10px; }
+    .logs {
+      margin-top: 16px; border: 1px solid var(--line); border-radius: 14px;
+      background: var(--card); padding: 12px;
+    }
+    .logs h2 { margin: 0 0 10px; font-size: 1rem; }
+    .log-list { display: grid; gap: 8px; max-height: 220px; overflow: auto; }
+    .log-item {
+      border: 1px solid var(--line); border-radius: 10px; padding: 9px;
+      font-size: 0.88rem; background: #fbfefd;
+    }
+    .overlay {
+      position: fixed; inset: 0; background: rgba(15,23,42,0.35);
+      display: none; align-items: center; justify-content: center; padding: 14px; z-index: 20;
+    }
+    .overlay.visible { display: flex; }
+    .dialog {
+      width: min(430px, 100%); border-radius: 14px; border: 1px solid var(--line);
+      background: #fff; padding: 16px; box-shadow: 0 16px 34px rgba(15,23,42,0.2);
+    }
+    .dialog h2 { margin: 0; font-size: 1.1rem; }
+    .dialog p { margin: 8px 0 12px; color: var(--sub); line-height: 1.45; }
+    .dialog input[type="text"] {
+      width: 100%; border: 1px solid var(--line); border-radius: 10px;
+      padding: 10px; font-size: 0.95rem; margin-bottom: 10px;
+    }
+    .dialog label.choice {
+      display: flex; align-items: center; gap: 8px;
+      border: 1px solid var(--line); border-radius: 10px;
+      padding: 10px; margin-bottom: 8px; background: #fafdfc;
+    }
+    .dialog .row { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
+    .pool-info { font-size: 0.88rem; color: var(--sub); margin-top: 4px; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+    @media (max-width: 760px) {
+      .actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .actions button { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="hero">
+      <h1>麻将海克斯（单机版）</h1>
+      <p>无需联网，直接使用。海克斯池本地管理，抽完自动重置。</p>
+    </header>
+
+    <section class="toolbar">
+      <div class="actions">
+        <button id="draw-btn" type="button">抽取海克斯</button>
+        <button id="reset-btn" class="danger" type="button">重置全部</button>
+      </div>
+      <div id="pool-info" class="pool-info"></div>
+      <div id="status" class="status"></div>
+    </section>
+
+    <h2 class="section-title">我的海克斯</h2>
+    <div id="my-hexes" class="hex-grid"></div>
+
+    <section class="logs">
+      <h2>使用记录</h2>
+      <div id="logs" class="log-list"></div>
+    </section>
+  </div>
+
+  <div id="name-layer" class="overlay visible">
+    <form id="name-form" class="dialog">
+      <h2>欢迎使用</h2>
+      <p>输入你的昵称开始使用海克斯系统。</p>
+      <input id="name-input" type="text" maxlength="20" placeholder="请输入昵称" required />
+      <button type="submit">开始</button>
+    </form>
+  </div>
+
+  <div id="use-layer" class="overlay">
+    <div class="dialog">
+      <h2>使用海克斯</h2>
+      <p id="use-hex-title"></p>
+      <div id="use-target-options"></div>
+      <div class="row">
+        <button id="cancel-use" class="ghost" type="button">取消</button>
+        <button id="confirm-use" type="button">确认使用</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const STORAGE_KEY = 'mahjong_hex_offline_state';
+
+    const HEXES = [
+      { id: 1, name: '红中大乐透', desc: '摸到红中时，立刻再摸两张，然后扔出两张牌' },
+      { id: 2, name: '不拘一格', desc: '你可以选择不在牌堆，而是在废弃牌中摸一张牌' },
+      { id: 3, name: '开摆', desc: '你接下来三轮无法行动，第四轮时可以摸六张牌' },
+      { id: 4, name: '后期专家', desc: '当牌只剩最后一排时，你胡牌倍数翻倍' },
+      { id: 5, name: '潘多拉备战席', desc: '你有一张手牌可以当做同样点数的其他牌' },
+      { id: 6, name: '福星之冕', desc: '你可以把发财当做万能牌使用' },
+      { id: 7, name: '变形重组器', desc: '开局使用，扔一个骰子，根据点数摸几打几' },
+      { id: 8, name: '恶魔契约', desc: '开局使用，你只能通过清一色胡牌，每回合可以摸两张牌，清一色为翻四番' },
+      { id: 9, name: '光明偷偷', desc: '向一个人索要一张指定牌（非万能牌），如果没有，他下回合无法行动' },
+      { id: 10, name: '行家里手', desc: '开局使用，选择一个玩家抽取他的三张手牌并还给他三张' },
+      { id: 11, name: '了解你的敌人', desc: '选择一名玩家明牌行动' },
+      { id: 12, name: '先苦后甜', desc: '如果你凑齐东西南北风四张牌，可以一回合打掉这四张牌，并且摸三张牌，有一张可视为万能牌' },
+      { id: 13, name: '拆卸器', desc: '你可以让一个玩家的海克斯无法生效' },
+      { id: 14, name: '南蛮入侵', desc: '本回合所有人必须打出条子，否则胡牌番数-2' },
+      { id: 15, name: '万箭齐发', desc: '本回合所有人必须打出万子，否则胡牌番数-2' },
+      { id: 16, name: '宝宝麻将', desc: '你每碰一次牌，胡牌番数+2' },
+      { id: 17, name: '最后储备', desc: '当你即将死亡时，你免疫本回合的淘汰，下一次对局时，有两张牌可以当做万能牌使用并且番数乘2' },
+      { id: 18, name: '最佳好友', desc: '如果你已经听牌，有一家胡牌时他的牌中有你听的牌，则你无需付出' },
+      { id: 19, name: '优柔寡断', desc: '本回合无法行动，下个回合偷取一个人的海克斯' },
+      { id: 20, name: '遥遥领先', desc: '开局使用，你无法摸牌，转而从弃牌堆里面摸取一张' },
+      { id: 21, name: '英雄登场', desc: '当一人胡牌时，你可以用一张牌换取他所摸到的那张牌截胡' },
+      { id: 22, name: '利滚利', desc: '当你连续三把未胡牌时，下一把胡牌翻倍' },
+      { id: 23, name: '清晰头脑', desc: '如果你本局没有碰，杠胡了，本局番数+3' },
+      { id: 24, name: '奋起直追', desc: '开局使用，低于十五点筹码时，本局摸二打二' },
+      { id: 25, name: '商店故障', desc: '你可以选择一种牌（条饼万杂），直到摸到该种类牌为止' },
+      { id: 26, name: '胜利宣告', desc: '如果你在火热连胜状态，胡牌番数乘二，直到失败为止' },
+      { id: 27, name: '棱彩命运', desc: '你立刻抽取三个海克斯，从中抽取一个，其余两个作废' },
+      { id: 28, name: '决斗', desc: '你可以指定两个人两轮轮流出你指定的牌型（条饼万杂），若有人出不出来则下回合无法行动' },
+      { id: 29, name: '重启任务', desc: '开局使用，你可以选择放弃自己的牌转而重新摸取' },
+      { id: 30, name: '光明水银', desc: '使其他人的海克斯无法对你生效' },
+      { id: 31, name: '休眠锻炉', desc: '使用该海克斯之后下回合可以抽取两个海克斯' },
+      { id: 32, name: '冒险举动', desc: '开局使用，你选择明牌行动，若胡牌则番数乘三' },
+      { id: 33, name: '五谷丰登', desc: '立刻摸取四张牌，从自己开始轮流选择一张' },
+      { id: 34, name: '潘多拉的盒子', desc: '你胡牌时可以选择抽取两次决定你的番数' },
+      { id: 35, name: 'D个痛快', desc: '本回合你可以摸三打三' },
+      { id: 36, name: '别再错过', desc: '你可以放弃摸牌阶段，转而从自己打出去的牌中摸一张' },
+      { id: 37, name: '挑个好伙计', desc: '若你已经听牌，其余人打出一张你所听的牌，你可以进行一次判定，若下张牌为你所预测的类型（条饼万杂），则你可以拿一张牌换取你所听的牌' },
+    ];
+
+    let playerName = '';
+    let remainingPool = [];
+    let myHexes = [];
+    let logs = [];
+    let cardSeq = 1;
+    let logSeq = 1;
+    let poolCycle = 1;
+    let activeCardId = '';
+
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return false;
+        const s = JSON.parse(raw);
+        playerName = s.playerName || '';
+        remainingPool = s.remainingPool || [];
+        myHexes = s.myHexes || [];
+        logs = s.logs || [];
+        cardSeq = s.cardSeq || 1;
+        logSeq = s.logSeq || 1;
+        poolCycle = s.poolCycle || 1;
+        return !!playerName;
+      } catch { return false; }
+    }
+
+    function saveState() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        playerName, remainingPool, myHexes, logs, cardSeq, logSeq, poolCycle
+      }));
+    }
+
+    function resetPool() {
+      remainingPool = HEXES.map(h => h.id);
+    }
+
+    function ensurePool() {
+      if (remainingPool.length === 0) {
+        resetPool();
+        poolCycle++;
+      }
+    }
+
+    function esc(text) {
+      return String(text ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;')
+        .replaceAll('"','&quot;').replaceAll("'",'&#39;');
+    }
+
+    function renderAll() {
+      document.getElementById('pool-info').textContent =
+        `卡池剩余 ${remainingPool.length} / ${HEXES.length} 张（第 ${poolCycle} 轮）`;
+
+      const hexGrid = document.getElementById('my-hexes');
+      if (myHexes.length === 0) {
+        hexGrid.innerHTML = '<div class="empty">暂无海克斯，点击上方按钮抽取</div>';
+      } else {
+        hexGrid.innerHTML = myHexes.map(card => {
+          const def = HEXES.find(h => h.id === card.hexId);
+          return `<div class="hex-card">
+            <h3>${esc(def ? def.name : '未知')}</h3>
+            <p>${esc(def ? def.desc : '')}</p>
+            <button class="use-btn" type="button" data-card-id="${esc(card.cardId)}" data-card-name="${esc(def ? def.name : '未知')}">使用</button>
+          </div>`;
+        }).join('');
+      }
+
+      const logList = document.getElementById('logs');
+      if (logs.length === 0) {
+        logList.innerHTML = '<div class="empty">暂无使用记录</div>';
+      } else {
+        logList.innerHTML = logs.map(log =>
+          `<div class="log-item"><strong>${esc(log.playerName)}</strong> 使用了 <strong>${esc(log.hexName)}</strong>（${esc(log.targetLabel)}）</div>`
+        ).join('');
+      }
+    }
+
+    function setStatus(text, isError) {
+      const el = document.getElementById('status');
+      el.textContent = text;
+      el.classList.toggle('error', !!isError);
+    }
+
+    function drawHex() {
+      ensurePool();
+      const idx = Math.floor(Math.random() * remainingPool.length);
+      const hexId = remainingPool.splice(idx, 1)[0];
+      const card = { cardId: 'c' + cardSeq++, hexId, drawnAt: new Date().toLocaleString() };
+      myHexes.push(card);
+      saveState();
+      renderAll();
+      const def = HEXES.find(h => h.id === hexId);
+      setStatus('抽取成功：' + (def ? def.name : ''));
+    }
+
+    function openUseModal(cardId, cardName) {
+      activeCardId = cardId;
+      document.getElementById('use-hex-title').textContent = '海克斯：' + cardName;
+      document.getElementById('use-target-options').innerHTML =
+        '<label class="choice"><input type="radio" name="use-target" value="SELF" checked /> 对自己使用</label>' +
+        '<label class="choice"><input type="radio" name="use-target" value="ALL" /> 对所有人使用</label>';
+      document.getElementById('use-layer').classList.add('visible');
+    }
+
+    function closeUseModal() {
+      activeCardId = '';
+      document.getElementById('use-layer').classList.remove('visible');
+    }
+
+    function useHex() {
+      if (!activeCardId) return;
+      const checked = document.querySelector('input[name="use-target"]:checked');
+      const target = checked ? checked.value : 'SELF';
+      const idx = myHexes.findIndex(c => c.cardId === activeCardId);
+      if (idx < 0) { closeUseModal(); return; }
+      const card = myHexes.splice(idx, 1)[0];
+      const def = HEXES.find(h => h.id === card.hexId);
+      const targetLabel = target === 'ALL' ? '对所有人使用' : '对自己使用';
+      logs.unshift({
+        id: 'l' + logSeq++, playerName, hexName: def ? def.name : '未知',
+        target, targetLabel, usedAt: new Date().toLocaleString()
+      });
+      if (logs.length > 80) logs.length = 80;
+      saveState();
+      closeUseModal();
+      renderAll();
+      setStatus('海克斯已使用');
+    }
+
+    function resetAll() {
+      if (!confirm('确定要重置全部吗？所有海克斯和记录都会清空。')) return;
+      resetPool();
+      myHexes = [];
+      logs = [];
+      cardSeq = 1;
+      logSeq = 1;
+      poolCycle = 1;
+      saveState();
+      renderAll();
+      setStatus('已重置');
+    }
+
+    document.getElementById('name-form').addEventListener('submit', e => {
+      e.preventDefault();
+      const name = document.getElementById('name-input').value.trim();
+      if (!name) return;
+      playerName = name;
+      resetPool();
+      saveState();
+      document.getElementById('name-layer').classList.remove('visible');
+      renderAll();
+    });
+
+    document.getElementById('draw-btn').addEventListener('click', drawHex);
+    document.getElementById('reset-btn').addEventListener('click', resetAll);
+
+    document.getElementById('my-hexes').addEventListener('click', e => {
+      const btn = e.target.closest('.use-btn');
+      if (btn) openUseModal(btn.dataset.cardId, btn.dataset.cardName);
+    });
+
+    document.getElementById('confirm-use').addEventListener('click', useHex);
+    document.getElementById('cancel-use').addEventListener('click', closeUseModal);
+    document.getElementById('use-layer').addEventListener('click', e => {
+      if (e.target.id === 'use-layer') closeUseModal();
+    });
+
+    if (loadState()) {
+      document.getElementById('name-layer').classList.remove('visible');
+      renderAll();
+    }
+  </script>
+</body>
+</html>
